@@ -1,2 +1,2 @@
 # Architecture_lab_3
-course at TAU university 2022.
+Implementation of pipelined processor for Architecture Lab course at TAU university 2022.

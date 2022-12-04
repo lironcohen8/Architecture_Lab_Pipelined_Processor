@@ -135,6 +135,8 @@ static char opcode_name[32][4] = {"ADD", "SUB", "LSF", "RSF", "AND", "OR", "XOR"
 				 "JLT", "JLE", "JEQ", "JNE", "JIN", "U", "U", "U",
 				 "HLT", "U", "U", "U", "U", "U", "U", "U"};
 
+static int inst_cnt = 0;
+
 static void dump_sram(sp_t *sp, char *name, llsim_memory_t *sram)
 {
 	FILE *fp;
@@ -263,20 +265,64 @@ static void sp_ctl(sp_t *sp)
             sprn->exec0_alu1 = spro->dec1_immediate;
         }
 		else {
-			sprn->exec0_alu0 = spro->r[spro->dec1_src0];
+			// alu0
 			if (spro->dec1_src0 == 0) {
 				sprn->exec0_alu0 = 0;
 			}
+
 			else if (spro->dec1_src0 == 1) {
 				sprn->exec0_alu0 = spro->dec1_immediate;
 			}
 
-			sprn->exec0_alu1 = spro->r[spro->dec1_src1];
+			else if (spro->exec1_active && spro->dec1_src0 == spro->exec1_dst &&
+			(spro->exec1_opcode == ADD || spro->exec1_opcode == SUB || spro->exec1_opcode == LSF ||
+			spro->exec1_opcode == RSF || spro->exec1_opcode == AND || spro->exec1_opcode == OR ||
+			spro->exec1_opcode == XOR || spro->exec1_opcode == LHI)) { // read after write bypass (ALU)
+				sprn->exec0_alu0 = spro->exec1_aluout;
+			}
+
+			else if (spro->exec1_active && spro->exec1_opcode == LD && spro->exec1_dst == spro->dec1_src0) { // read after write bypass (MEM)
+				sprn->exec0_alu0 = llsim_mem_extract_dataout(sp->sramd, 31, 0);
+			}
+			
+			else if (spro->exec1_active && spro->exec1_aluout == 1 && spro->dec1_src0 == 7 &&
+			(spro->exec1_opcode == JLT || spro->exec1_opcode == JLE || spro->exec1_opcode == JEQ ||
+			spro->exec1_opcode == JNE || spro->exec1_opcode == JIN)) { // branch is taken, need to flush value of r[7]
+				sprn->exec0_alu0 = spro->exec1_pc;
+			}
+
+			else {
+				sprn->exec0_alu0 = spro->r[spro->dec1_src0];
+			}
+
+			// alu1
 			if (spro->dec1_src1 == 0) {
 				sprn->exec0_alu1 = 0;
 			}
+
 			else if (spro->dec1_src1 == 1) {
 				sprn->exec0_alu1 = spro->dec1_immediate;
+			}
+
+			else if (spro->exec1_active && spro->dec1_src1 == spro->exec1_dst &&
+			(spro->exec1_opcode == ADD || spro->exec1_opcode == SUB || spro->exec1_opcode == LSF ||
+			spro->exec1_opcode == RSF || spro->exec1_opcode == AND || spro->exec1_opcode == OR ||
+			spro->exec1_opcode == XOR || spro->exec1_opcode == LHI)) { // read after write bypass (ALU)
+				sprn->exec0_alu1 = spro->exec1_aluout;
+			}
+
+			else if (spro->exec1_active && spro->exec1_opcode == LD && spro->exec1_dst == spro->dec1_src1) { // read after write bypass (MEM)
+				sprn->exec0_alu1 = llsim_mem_extract_dataout(sp->sramd, 31, 0);
+			}
+			
+			else if (spro->exec1_active && spro->exec1_aluout == 1 && spro->dec1_src1 == 7 &&
+			(spro->exec1_opcode == JLT || spro->exec1_opcode == JLE || spro->exec1_opcode == JEQ ||
+			spro->exec1_opcode == JNE || spro->exec1_opcode == JIN)) { // branch is taken, need to flush value of r[7]
+				sprn->exec0_alu1 = spro->exec1_pc;
+			}
+
+			else {
+				sprn->exec0_alu1 = spro->r[spro->dec1_src1];
 			}
 		}
 
@@ -363,11 +409,13 @@ static void sp_ctl(sp_t *sp)
 
 	// exec1
 	if (spro->exec1_active) { // writing back ALU and memory (ST)
-		fprintf(inst_trace_fp,"--- instruction %i (%04x) @ PC %i (%04x) -----------------------------------------------------------\n", spro->cycle_counter, spro->cycle_counter, spro->exec1_pc, spro->exec1_pc);
+		fprintf(inst_trace_fp,"--- instruction %i (%04x) @ PC %i (%04x) -----------------------------------------------------------\n", inst_cnt, inst_cnt, spro->exec1_pc, spro->exec1_pc);
         fprintf(inst_trace_fp,"pc = %04d, inst = %08x, opcode = %i (%s), dst = %i, src0 = %i, src1 = %i, immediate = %08x\n", spro->exec1_pc, spro->exec1_inst, spro->exec1_opcode, opcode_name[spro->exec1_opcode],
         spro->exec1_dst, spro->exec1_src0, spro->exec1_src1, sbs(spro->exec1_inst, 15, 0));
         fprintf(inst_trace_fp,"r[0] = 00000000 r[1] = %08x r[2] = %08x r[3] = %08x \n",spro->exec1_immediate, spro->r[2], spro->r[3]);
         fprintf(inst_trace_fp,"r[4] = %08x r[5] = %08x r[6] = %08x r[7] = %08x \n\n", spro->r[4], spro->r[5], spro->r[6], spro->r[7]);
+
+		inst_cnt = inst_cnt + 1;
 
 		if (spro->exec1_opcode == ADD) {
             fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = %i %s %i <<<<\n\n", spro->exec1_dst, spro->exec1_alu0, opcode_name[spro->exec1_opcode], spro->exec1_alu1);
@@ -464,7 +512,7 @@ static void sp_ctl(sp_t *sp)
 		else if (spro->exec1_opcode == HLT) {
 			llsim_stop();
 			fprintf(inst_trace_fp, ">>>> EXEC: HALT at PC %04x<<<<\n", spro->exec1_pc);
-            fprintf(inst_trace_fp, "sim finished at pc %i, %i instructions", spro->exec1_pc, spro->cycle_counter);
+            fprintf(inst_trace_fp, "sim finished at pc %i, %i instructions", spro->exec1_pc, inst_cnt);
 			dump_sram(sp, "srami_out.txt", sp->srami);
 			dump_sram(sp, "sramd_out.txt", sp->sramd);
 			sp->start = 0;
@@ -513,7 +561,7 @@ static void sp_generate_sram_memory_image(sp_t *sp, char *program_name)
         }
 	sp->memory_image_size = addr;
 
-        fprintf(inst_trace_fp, "program %s loaded, %d lines\n", program_name, addr);
+        fprintf(inst_trace_fp, "program %s loaded, %d lines\n\n", program_name, addr);
 
 	for (i = 0; i < sp->memory_image_size; i++) {
 		llsim_mem_inject(sp->srami, i, sp->memory_image[i], 31, 0);

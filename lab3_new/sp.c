@@ -121,6 +121,20 @@ static char opcode_name[32][4] = {"ADD", "SUB", "LSF", "RSF", "AND", "OR", "XOR"
 				 "JLT", "JLE", "JEQ", "JNE", "JIN", "U", "U", "U",
 				 "HLT", "U", "U", "U", "U", "U", "U", "U"};
 
+#define OPCODE_MASK 0x3E000000
+#define OPCODE_SHIFT 0x19
+#define DST_MASK 0x01C00000
+#define DST_SHIFT 0x16
+#define SRC0_MASK 0x00380000
+#define SRC0_SHIFT 0x13
+#define SRC1_MASK 0x00070000
+#define SRC1_SHIFT 0x10
+#define ALU1_SHIFT 0x10
+#define IMM_MASK 0x0000FFFF
+#define LOWER_16_BITS_MASK 0x0000FFFF
+#define SIGN_EXT_MASK 0x00008000
+#define SIGN_EXT 0xFFFF0000
+
 static void dump_sram(sp_t *sp, char *name, llsim_memory_t *sram)
 {
 	FILE *fp;
@@ -206,28 +220,269 @@ static void sp_ctl(sp_t *sp)
 
 	// fetch0
 	sprn->fetch1_active = 0;
-	if (spro->fetch0_active) {
+	if (spro->fetch0_active) { // reading current instruction from memory
+		llsim_mem_read(sp->srami, spro->fetch0_pc); // fetching the current instruction from SRAMI
+		sprn->fetch0_pc = (spro->fetch0_pc + 1) & 65535; // updating to next pc
+        sprn->fetch1_pc = spro->fetch0_pc; // moving pc value in pipeline
+        sprn->fetch1_active = 1; // activating next stage
 	}
 
 	// fetch1
-	// FILL HERE
+	if (spro->fetch1_active) { // sampling memoty output to the instruction register
+		sprn->dec0_pc = spro->fetch1_pc; // setting pc for next stage
+		sprn->dec0_inst = llsim_mem_extract_dataout(sp->srami, 31, 0);
+		sprn->dec0_active = 1;
+	}
+	else { // fetch1 is not active
+		sprn->dec0_active = 0;
+	}
 	
 	// dec0
-	// FILL HERE
+	if (spro->dec0_active) { // decoding instruction 
+		sprn->dec1_opcode = (spro->dec0_inst & OPCODE_MASK) >> OPCODE_SHIFT;
+    	sprn->dec1_dst = (spro->dec0_inst & DST_MASK) >> DST_SHIFT;
+		sprn->dec1_src0 = (spro->dec0_inst & SRC0_MASK) >> SRC0_SHIFT;
+		sprn->dec1_src1 = (spro->dec0_inst & SRC1_MASK) >> SRC1_SHIFT;
+		sprn->dec1_immediate = (spro->dec0_inst) & IMM_MASK;
+		if ((spro->inst & SIGN_EXT_MASK) != 0) { // need sign extension with msb 1
+                sprn->dec1_immediate = sprn->dec0_immediate + (SIGN_EXT);
+        }
+		sprn->dec0_active = 1;
+	}
+	else { // dec0 is not active
+		sprn->dec1_active = 0;
+	}
 
 	// dec1
-	// FILL HERE
+	if (spro->dec1_active) { // preparing ALU operands
+		if (spro->dec1_opcode == LHI) {
+            sprn->exec0_alu0 = (spro->r[spro->dec1_dst]) & LOWER_16_BITS_MASK;
+            sprn->exec0_alu1 = spro->dec1_immediate;
+        }
+		else {
+			sprn->exec0_alu0 = spro->r[spro->src0];
+			if (spro->dec1_src0 == 0) {
+				sprn->exec0_alu0 = 0;
+			}
+			else if (spro->dec1_src0 == 1) {
+				sprn->exec0_alu0 = spro->dec1_immediate;
+			}
+
+			sprn->exec0_alu1 = spro->r[spro->src1];
+			if (spro->dec1_src1 == 0) {
+				sprn->alu1 = 0;
+			}
+			else if (spro->dec1_src1 == 1) {
+				sprn->exec0_alu1 = spro->dec1_immediate;
+			}
+		}
+
+		// moving instruction values in pipeline
+		sprn->exec0_pc = spro->dec1_pc;
+        sprn->exec0_inst = spro->dec1_inst;
+        sprn->exec0_opcode = spro->dec1_opcode;
+        sprn->exec0_dst = spro->dec1_dst;
+        sprn->exec0_src0 = spro->dec1_src0;
+        sprn->exec0_src1 = spro->dec1_src1;
+        sprn->exec0_immediate = spro->dec1_immediate;
+
+		sprn->exec0_active = 1;
+	}
+	else { // dec1 is not active
+		sprn->exec0_active = 0;
+	}
 
 	// exec0
-	// FILL HERE
+	if (spro->exec0_active) { // executing ALU and LD operations
+		switch (spro->exec0_opcode) {
+			case ADD:
+				sprn->exec1_aluout = spro->exec0_alu0 + spro->exec0_alu1;
+				break;
+			case SUB:
+				sprn->exec1_aluout = spro->exec0_alu0 - spro->exec0_alu1;
+				break;
+			case LSF:
+				sprn->exec1_aluout = spro->exec0_alu0 << spro->exec0_alu1;
+				break;
+			case RSF:
+				sprn->exec1_aluout = spro->exec0_alu0 >> spro->exec0_alu1;
+				break;	
+			case AND:
+				sprn->exec1_aluout = spro->exec0_alu0 & spro->exec0_alu1;
+				break;
+			case OR:
+				sprn->exec1_aluout = spro->exec0_alu0 | spro->exec0_alu1;
+				break;
+			case XOR:
+				sprn->exec1_aluout = spro->exec0_alu0 & spro->exec0_alu1;
+				break;
+			case LHI:
+				sprn->exec1_aluout = (spro->exec0_alu1 << ALU1_SHIFT) + (spro->exec0_alu0 & LOWER_16_BITS_MASK);
+				break;	
+			case LD:
+				llsim_mem_read(sp->exec0_sram, spro->exec0_alu1);
+				break;
+			case ST:
+				sprn->exec1_aluout = spro->exec0_aluout;
+				break;
+			case JLT:
+				sprn->exec1_aluout = (spro->exec0_alu0 < spro->exec0_alu1) ? 1 : 0;
+				break;
+			case JLE:
+				sprn->exec1_aluout = (spro->exec0_alu0 <= spro->exec0_alu1) ? 1 : 0;
+				break;	
+			case JEQ:
+				sprn->exec1_aluout = (spro->exec0_alu0 == spro->exec0_alu1) ? 1 : 0;
+				break;
+			case JNE:
+				sprn->exec1_aluout = (spro->exec0_alu0 != spro->exec0_alu1) ? 1 : 0;
+				break;
+			case JIN:
+				sprn->exec1_aluout = 1;
+				break;
+			case HLT:
+				break;
+		}
+
+		// moving instruction values in pipeline
+		sprn->exec1_pc = spro->exec0_pc;
+        sprn->exec1_inst = spro->exec0_inst;
+        sprn->exec1_opcode = spro->exec0_opcode;
+        sprn->exec1_dst = spro->exec0_dst;
+        sprn->exec1_src0 = spro->exec0_src0;
+        sprn->exec1_src1 = spro->exec0_src1;
+        sprn->exec1_immediate = spro->exec0_immediate;
+
+		sprn->exec1_active = 1;
+	}
+	else { // exec0 is not active
+		sprn->exec1_active = 0;
+	}
 
 	// exec1
-	if (spro->exec1_active) {
-		// FILL HERE
-		if (spro->exec1_opcode == HLT) {
+	if (spro->exec1_active) { // writing back ALU and memory (ST)
+		fprintf(inst_trace_fp,"--- instruction %i (%04x) @ PC %i (%04x) -----------------------------------------------------------\n", sp->inst_cnt, sp->inst_cnt, sp->spro->exec1_pc, sp->spro->exec1_pc);
+        fprintf(inst_trace_fp,"pc = %04d, inst = %08x, opcode = %i (%s), dst = %i, src0 = %i, src1 = %i, immediate = %08x\n", sp->spro->exec1_pc, sp->spro->exec1_inst, sp->spro->exec1_opcode, opcode_name[sp->spro->exec1_opcode],
+        sp->spro->exec1_dst, sp->spro->exec1_src0, sp->spro->exec1_src1, sbs(sp->spro->exec1_inst, 15, 0));
+        fprintf(inst_trace_fp,"r[0] = 00000000 r[1] = %08x r[2] = %08x r[3] = %08x \n",sp->spro->exec1_immediate, sp->spro->r[2], sp->spro->r[3]);
+        fprintf(inst_trace_fp,"r[4] = %08x r[5] = %08x r[6] = %08x r[7] = %08x \n\n", sp->spro->r[4], sp->spro->r[5], sp->spro->r[6], sp->spro->r[7]);
+
+		if (spro->exec1_opcode == ADD) {
+            fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = %i %s %i <<<<\n\n", spro->exec1_dst, spro->exec1_alu0, opcode_name[spro->exec1_opcode], spro->exec1_alu1);
+            sprn->r[spro->dst] = spro->aluout;
+            sprn->pc = spro->exec1_pc + 1;
+        }
+        else if (spro->exec1_opcode == SUB) {
+            fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = %i %s %i <<<<\n\n", spro->exec1_dst, spro->exec1_alu0, opcode_name[spro->exec1_opcode], spro->exec1_alu1);
+            sprn->r[spro->dst] = spro->aluout;
+            sprn->pc = spro->exec1_pc + 1;
+        }
+        else if (spro->exec1_opcode == LSF) {
+            fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = %i %s %i <<<<\n\n", spro->exec1_dst, spro->exec1_alu0, opcode_name[spro->exec1_opcode], spro->exec1_alu1);
+            sprn->r[spro->dst] = spro->aluout;
+            sprn->pc = spro->exec1_pc + 1;
+        }
+        else if (spro->exec1_opcode == RSF) {
+            fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = %i %s %i <<<<\n\n", spro->exec1_dst, spro->exec1_alu0, opcode_name[spro->exec1_opcode], spro->exec1_alu1);
+            sprn->r[spro->dst] = spro->aluout;
+            sprn->pc = spro->exec1_pc + 1;
+        }
+        else if (spro->exec1_opcode == AND) {
+            fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = %i %s %i <<<<\n\n", spro->exec1_dst, spro->exec1_alu0, opcode_name[spro->exec1_opcode], spro->exec1_alu1);
+            sprn->r[spro->dst] = spro->aluout;
+            sprn->pc = spro->exec1_pc + 1;
+        }
+        else if (spro->exec1_opcode == OR) {
+            fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = %i %s %i <<<<\n\n", spro->exec1_dst, spro->exec1_alu0, opcode_name[spro->exec1_opcode], spro->exec1_alu1);
+            sprn->r[spro->dst] = spro->aluout;
+            sprn->pc = spro->exec1_pc + 1;
+        }
+        else if (spro->exec1_opcode == XOR) {
+            fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = %i %s %i <<<<\n\n", spro->exec1_dst, spro->exec1_alu0, opcode_name[spro->exec1_opcode], spro->exec1_alu1);
+            sprn->r[spro->dst] = spro->aluout;
+            sprn->pc = spro->exec1_pc + 1;
+        }
+        else if (spro->exec1_opcode == LHI) {
+            fprintf(inst_trace_fp, ">>>> EXEC: R[%i] = %i %s %i <<<<\n\n", spro->exec1_dst, spro->exec1_alu0, opcode_name[spro->exec1_opcode], spro->exec1_alu1);
+            sprn->r[spro->dst] = spro->aluout;
+            sprn->pc = spro->exec1_pc + 1;
+        }
+        else if (spro->exec1_opcode == LD) {
+            int loaded_mem = llsim_mem_extract_dataout(sp->sramd,31,0);
+            fprintf(inst_trace_fp,">>>> EXEC: R[%i] = MEM[%i] = %08x <<<<\n\n", spro->exec1_dst, spro->exec1_alu1, loaded_mem);
+            sprn->r[spro->dst] = loaded_mem;
+            sprn->pc = spro->exec1_pc + 1;
+        }
+        else if (spro->exec1_opcode == ST) {
+            fprintf(inst_trace_fp,">>>> EXEC: MEM[%i] = R[%i] = %08x <<<<\n\n", (spro->exec1_src1 == 1)? spro->exec1_immediate : spro->r[spro->exec1_src1], spro->exec1_src0, spro->r[spro->exec1_src0]);
+            llsim_mem_set_datain(sp->sramd,spro->exec1_alu0,31,0);
+			llsim_mem_write(sp->sramd,spro->exec1_alu1);
+            sprn->pc = spro->exec1_pc + 1;
+        }
+        else if (spro->exec1_opcode == JLT) {
+            if (spro->aluout == 1) {
+                fprintf(inst_trace_fp,">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->exec1_opcode], spro->r[spro->exec1_src0], spro->r[spro->exec1_src1], spro->exec1_immediate);
+                sprn->r[7] = spro->exec1_pc;
+                sprn->pc = spro->exec1_immediate;
+            }
+            else {
+                fprintf(inst_trace_fp,">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->exec1_opcode], spro->r[spro->exec1_src0], spro->r[spro->exec1_src1], spro->pc+1);
+                sprn->pc = spro->exec1_pc + 1;
+            }
+        }
+        else if (spro->exec1_opcode == JLE) {
+            if (spro->aluout == 1) {
+                fprintf(inst_trace_fp,">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->exec1_opcode], spro->r[spro->exec1_src0], spro->r[spro->exec1_src1], spro->exec1_immediate);
+                sprn->r[7] = spro->exec1_pc;
+                sprn->pc = spro->exec1_immediate;
+            }
+            else {
+                fprintf(inst_trace_fp,">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->exec1_opcode], spro->r[spro->exec1_src0], spro->r[spro->exec1_src1], spro->pc+1);
+                sprn->pc = spro->exec1_pc + 1;
+            }
+        }
+        else if (spro->exec1_opcode == JEQ) {
+            if (spro->aluout == 1) {
+                fprintf(inst_trace_fp,">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->exec1_opcode], spro->r[spro->exec1_src0], spro->r[spro->exec1_src1], spro->immediate);
+                sprn->r[7] = spro->exec1_pc;
+                sprn->pc = spro->exec1_immediate;
+            }
+            else {
+                fprintf(inst_trace_fp,">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->exec1_opcode], spro->r[spro->exec1_src0], spro->r[spro->exec1_src1], spro->pc+1);
+                sprn->pc = spro->exec1_pc + 1;
+            }
+        }
+        else if (spro->exec1_opcode == JNE) {
+            if (spro->aluout == 1) {
+                fprintf(inst_trace_fp,">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->exec1_opcode], spro->r[spro->exec1_src0], spro->r[spro->exec1_src1], spro->exec1_immediate);
+                sprn->r[7] = spro->exec1_pc;
+                sprn->pc = spro->exec1_immediate;
+            }
+            else {
+                fprintf(inst_trace_fp,">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->exec1_opcode], spro->r[spro->exec1_src0], spro->r[spro->exec1_src1], spro->pc+1);
+                sprn->pc = spro->exec1_pc + 1;
+            }
+        }
+        else if (spro->exec1_opcode == JIN) {
+            if (spro->aluout == 1) {
+                fprintf(inst_trace_fp,">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->exec1_opcode], spro->r[spro->exec1_src0], spro->r[spro->exec1_src1], spro->exec1_immediate);
+                sprn->r[7] = spro->exec1_pc;
+                sprn->pc = spro->exec1_immediate;
+            }
+            else {
+                fprintf(inst_trace_fp,">>>> EXEC: %s %i, %i, %i <<<<\n\n", opcode_name[spro->exec1_opcode], spro->r[spro->exec1_src0], spro->r[spro->exec1_src1], spro->pc+1);
+                sprn->pc = spro->exec1_pc + 1;
+            }
+        }
+		else if (spro->exec1_opcode == HLT) {
 			llsim_stop();
+			fprintf(inst_trace_fp, ">>>> EXEC: HALT at PC %04x<<<<\n", spro->exec1_pc);
+            fprintf(inst_trace_fp, "sim finished at pc %i, %i instructions", sp->spro->exec1_pc, sp->inst_cnt);
 			dump_sram(sp, "srami_out.txt", sp->srami);
 			dump_sram(sp, "sramd_out.txt", sp->sramd);
+			sp->start = 0;
+            break;
+
 		}
 	}
 }

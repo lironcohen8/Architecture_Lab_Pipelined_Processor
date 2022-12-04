@@ -604,7 +604,7 @@ exec1_src1 00000002
 exec1_dst 00000006
 exec1_immediate 00000000
 exec1_alu0 00000000
-exec1_alu1 0000000f
+exec1_alu1 baadbaad
 exec1_aluout 00000010
 
 
@@ -650,7 +650,7 @@ exec1_src0 00000006
 exec1_src1 00000005
 exec1_dst 00000006
 exec1_immediate 00000000
-exec1_alu0 00000000
+exec1_alu0 00000010
 exec1_alu1 00000000
 exec1_aluout 00000000
 

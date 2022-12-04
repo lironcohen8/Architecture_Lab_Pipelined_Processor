@@ -152,6 +152,159 @@ static void dump_sram(sp_t *sp, char *name, llsim_memory_t *sram)
 	fclose(fp);
 }
 
+static void decide_exec0_alu0_value(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn) {
+	if (spro->dec1_src0 == 0) {
+		sprn->exec0_alu0 = 0;
+	}
+
+	else if (spro->dec1_src0 == 1) {
+		sprn->exec0_alu0 = spro->dec1_immediate;
+	}
+
+	else if (spro->exec1_active && spro->dec1_src0 == spro->exec1_dst &&
+	(spro->exec1_opcode == ADD || spro->exec1_opcode == SUB || spro->exec1_opcode == LSF ||
+	spro->exec1_opcode == RSF || spro->exec1_opcode == AND || spro->exec1_opcode == OR ||
+	spro->exec1_opcode == XOR || spro->exec1_opcode == LHI)) { // read after write bypass (ALU)
+		sprn->exec0_alu0 = spro->exec1_aluout;
+	}
+
+	else if (spro->exec1_active && spro->exec1_opcode == LD && spro->exec1_dst == spro->dec1_src0) { // read after write bypass (MEM)
+		sprn->exec0_alu0 = llsim_mem_extract_dataout(sp->sramd, 31, 0);
+	}
+	
+	else if (spro->exec1_active && spro->exec1_aluout == 1 && spro->dec1_src0 == 7 &&
+	(spro->exec1_opcode == JLT || spro->exec1_opcode == JLE || spro->exec1_opcode == JEQ ||
+	spro->exec1_opcode == JNE || spro->exec1_opcode == JIN)) { // branch is taken, need to flush value of r[7]
+		sprn->exec0_alu0 = spro->exec1_pc;
+	}
+
+	else {
+		sprn->exec0_alu0 = spro->r[spro->dec1_src0];
+	}
+}
+
+static void decide_exec0_alu1_value(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn) {
+	if (spro->dec1_src1 == 0) {
+		sprn->exec0_alu1 = 0;
+	}
+
+	else if (spro->dec1_src1 == 1) {
+		sprn->exec0_alu1 = spro->dec1_immediate;
+	}
+
+	else if (spro->exec1_active && spro->dec1_src1 == spro->exec1_dst &&
+	(spro->exec1_opcode == ADD || spro->exec1_opcode == SUB || spro->exec1_opcode == LSF ||
+	spro->exec1_opcode == RSF || spro->exec1_opcode == AND || spro->exec1_opcode == OR ||
+	spro->exec1_opcode == XOR || spro->exec1_opcode == LHI)) { // read after write bypass (ALU)
+		sprn->exec0_alu1 = spro->exec1_aluout;
+	}
+
+	else if (spro->exec1_active && spro->exec1_opcode == LD && spro->exec1_dst == spro->dec1_src1) { // read after write bypass (MEM)
+		sprn->exec0_alu1 = llsim_mem_extract_dataout(sp->sramd, 31, 0);
+	}
+	
+	else if (spro->exec1_active && spro->exec1_aluout == 1 && spro->dec1_src1 == 7 &&
+	(spro->exec1_opcode == JLT || spro->exec1_opcode == JLE || spro->exec1_opcode == JEQ ||
+	spro->exec1_opcode == JNE || spro->exec1_opcode == JIN)) { // branch is taken, need to flush value of r[7]
+		sprn->exec0_alu1 = spro->exec1_pc;
+	}
+
+	else {
+		sprn->exec0_alu1 = spro->r[spro->dec1_src1];
+	}
+}
+
+static void decide_exec1_aluout_value(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn) {
+	switch (spro->exec0_opcode) {
+	case ADD:
+		sprn->exec1_aluout = spro->exec0_alu0 + spro->exec0_alu1;
+		break;
+	case SUB:
+		sprn->exec1_aluout = spro->exec0_alu0 - spro->exec0_alu1;
+		break;
+	case LSF:
+		sprn->exec1_aluout = spro->exec0_alu0 << spro->exec0_alu1;
+		break;
+	case RSF:
+		sprn->exec1_aluout = spro->exec0_alu0 >> spro->exec0_alu1;
+		break;	
+	case AND:
+		sprn->exec1_aluout = spro->exec0_alu0 & spro->exec0_alu1;
+		break;
+	case OR:
+		sprn->exec1_aluout = spro->exec0_alu0 | spro->exec0_alu1;
+		break;
+	case XOR:
+		sprn->exec1_aluout = spro->exec0_alu0 & spro->exec0_alu1;
+		break;
+	case LHI:
+		sprn->exec1_aluout = (spro->exec0_alu1 << ALU1_SHIFT) + (spro->exec0_alu0 & LOWER_16_BITS_MASK);
+		break;	
+	case LD:
+		llsim_mem_read(sp->sramd, spro->exec0_alu1);
+		break;
+	case JLT:
+		sprn->exec1_aluout = (spro->exec0_alu0 < spro->exec0_alu1) ? 1 : 0;
+		break;
+	case JLE:
+		sprn->exec1_aluout = (spro->exec0_alu0 <= spro->exec0_alu1) ? 1 : 0;
+		break;	
+	case JEQ:
+		sprn->exec1_aluout = (spro->exec0_alu0 == spro->exec0_alu1) ? 1 : 0;
+		break;
+	case JNE:
+		sprn->exec1_aluout = (spro->exec0_alu0 != spro->exec0_alu1) ? 1 : 0;
+		break;
+	case JIN:
+		sprn->exec1_aluout = 1;
+		break;
+	case HLT:
+		break;
+	}
+}
+
+static void decide_exec1_alu0_value(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn) {
+	if (spro->exec0_src0 != 0 && spro->exec0_src0 != 1) {
+		if (spro->exec1_active && spro->exec1_dst == spro->exec0_src0 &&
+        (spro->exec0_opcode == ADD || spro->exec0_opcode == SUB || spro->exec0_opcode == AND ||
+		spro->exec0_opcode == OR || spro->exec0_opcode == XOR || spro->exec0_opcode == LSF ||
+		spro->exec0_opcode == RSF || spro->exec0_opcode == LHI)) { // read after write bypass (ALU)
+            sprn->exec1_alu0 = spro->exec1_aluout;
+        }
+
+        else if (spro->exec1_active && spro->exec0_opcode == LD && spro->exec0_src0 == spro->exec1_dst) { // read after write bypass (MEM)
+            sprn->exec1_alu0 = llsim_mem_extract_dataout(sp->sramd, 31, 0);
+        }
+        
+        else if (spro->exec1_active && spro->exec0_src0 == 7 &&
+		(spro->exec0_opcode == JLT || spro->exec0_opcode == JLE || spro->exec0_opcode == JEQ ||
+		spro->exec0_opcode == JNE || spro->exec0_opcode == JIN)) { // branch is taken, need to flush value of r[7]
+            sprn->exec1_alu0 = spro->exec1_pc;
+        }
+    }
+}
+
+static void decide_exec1_alu1_value(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn) {
+	if (spro->exec0_src1 != 0 && spro->exec0_src1 != 1) {
+		if (spro->exec1_active && spro->exec1_dst == spro->exec0_src1 &&
+        (spro->exec0_opcode == ADD || spro->exec0_opcode == SUB || spro->exec0_opcode == AND ||
+		spro->exec0_opcode == OR || spro->exec0_opcode == XOR || spro->exec0_opcode == LSF ||
+		spro->exec0_opcode == RSF || spro->exec0_opcode == LHI)) { // read after write bypass (ALU)
+            sprn->exec1_alu1 = spro->exec1_aluout;
+        }
+
+        else if (spro->exec1_active && spro->exec0_opcode == LD && spro->exec0_src1 == spro->exec1_dst) { // read after write bypass (MEM)
+            sprn->exec1_alu1 = llsim_mem_extract_dataout(sp->sramd, 31, 0);
+        }
+        
+        else if (spro->exec1_active && spro->exec0_src1 == 7 &&
+		(spro->exec0_opcode == JLT || spro->exec0_opcode == JLE || spro->exec0_opcode == JEQ ||
+		spro->exec0_opcode == JNE || spro->exec0_opcode == JIN)) { // branch is taken, need to flush value of r[7]
+            sprn->exec1_alu1 = spro->exec1_pc;
+        }
+    }
+}
+
 static void sp_ctl(sp_t *sp)
 {
 	sp_registers_t *spro = sp->spro;
@@ -265,65 +418,8 @@ static void sp_ctl(sp_t *sp)
             sprn->exec0_alu1 = spro->dec1_immediate;
         }
 		else {
-			// alu0
-			if (spro->dec1_src0 == 0) {
-				sprn->exec0_alu0 = 0;
-			}
-
-			else if (spro->dec1_src0 == 1) {
-				sprn->exec0_alu0 = spro->dec1_immediate;
-			}
-
-			else if (spro->exec1_active && spro->dec1_src0 == spro->exec1_dst &&
-			(spro->exec1_opcode == ADD || spro->exec1_opcode == SUB || spro->exec1_opcode == LSF ||
-			spro->exec1_opcode == RSF || spro->exec1_opcode == AND || spro->exec1_opcode == OR ||
-			spro->exec1_opcode == XOR || spro->exec1_opcode == LHI)) { // read after write bypass (ALU)
-				sprn->exec0_alu0 = spro->exec1_aluout;
-			}
-
-			else if (spro->exec1_active && spro->exec1_opcode == LD && spro->exec1_dst == spro->dec1_src0) { // read after write bypass (MEM)
-				sprn->exec0_alu0 = llsim_mem_extract_dataout(sp->sramd, 31, 0);
-			}
-			
-			else if (spro->exec1_active && spro->exec1_aluout == 1 && spro->dec1_src0 == 7 &&
-			(spro->exec1_opcode == JLT || spro->exec1_opcode == JLE || spro->exec1_opcode == JEQ ||
-			spro->exec1_opcode == JNE || spro->exec1_opcode == JIN)) { // branch is taken, need to flush value of r[7]
-				sprn->exec0_alu0 = spro->exec1_pc;
-			}
-
-			else {
-				sprn->exec0_alu0 = spro->r[spro->dec1_src0];
-			}
-
-			// alu1
-			if (spro->dec1_src1 == 0) {
-				sprn->exec0_alu1 = 0;
-			}
-
-			else if (spro->dec1_src1 == 1) {
-				sprn->exec0_alu1 = spro->dec1_immediate;
-			}
-
-			else if (spro->exec1_active && spro->dec1_src1 == spro->exec1_dst &&
-			(spro->exec1_opcode == ADD || spro->exec1_opcode == SUB || spro->exec1_opcode == LSF ||
-			spro->exec1_opcode == RSF || spro->exec1_opcode == AND || spro->exec1_opcode == OR ||
-			spro->exec1_opcode == XOR || spro->exec1_opcode == LHI)) { // read after write bypass (ALU)
-				sprn->exec0_alu1 = spro->exec1_aluout;
-			}
-
-			else if (spro->exec1_active && spro->exec1_opcode == LD && spro->exec1_dst == spro->dec1_src1) { // read after write bypass (MEM)
-				sprn->exec0_alu1 = llsim_mem_extract_dataout(sp->sramd, 31, 0);
-			}
-			
-			else if (spro->exec1_active && spro->exec1_aluout == 1 && spro->dec1_src1 == 7 &&
-			(spro->exec1_opcode == JLT || spro->exec1_opcode == JLE || spro->exec1_opcode == JEQ ||
-			spro->exec1_opcode == JNE || spro->exec1_opcode == JIN)) { // branch is taken, need to flush value of r[7]
-				sprn->exec0_alu1 = spro->exec1_pc;
-			}
-
-			else {
-				sprn->exec0_alu1 = spro->r[spro->dec1_src1];
-			}
+			decide_exec0_alu0_value(sp, spro, sprn);
+			decide_exec0_alu1_value(sp, spro, sprn);
 		}
 
 		// moving instruction values in pipeline
@@ -343,52 +439,7 @@ static void sp_ctl(sp_t *sp)
 
 	// exec0
 	if (spro->exec0_active) { // executing ALU and LD operations
-		switch (spro->exec0_opcode) {
-			case ADD:
-				sprn->exec1_aluout = spro->exec0_alu0 + spro->exec0_alu1;
-				break;
-			case SUB:
-				sprn->exec1_aluout = spro->exec0_alu0 - spro->exec0_alu1;
-				break;
-			case LSF:
-				sprn->exec1_aluout = spro->exec0_alu0 << spro->exec0_alu1;
-				break;
-			case RSF:
-				sprn->exec1_aluout = spro->exec0_alu0 >> spro->exec0_alu1;
-				break;	
-			case AND:
-				sprn->exec1_aluout = spro->exec0_alu0 & spro->exec0_alu1;
-				break;
-			case OR:
-				sprn->exec1_aluout = spro->exec0_alu0 | spro->exec0_alu1;
-				break;
-			case XOR:
-				sprn->exec1_aluout = spro->exec0_alu0 & spro->exec0_alu1;
-				break;
-			case LHI:
-				sprn->exec1_aluout = (spro->exec0_alu1 << ALU1_SHIFT) + (spro->exec0_alu0 & LOWER_16_BITS_MASK);
-				break;	
-			case LD:
-				llsim_mem_read(sp->sramd, spro->exec0_alu1);
-				break;
-			case JLT:
-				sprn->exec1_aluout = (spro->exec0_alu0 < spro->exec0_alu1) ? 1 : 0;
-				break;
-			case JLE:
-				sprn->exec1_aluout = (spro->exec0_alu0 <= spro->exec0_alu1) ? 1 : 0;
-				break;	
-			case JEQ:
-				sprn->exec1_aluout = (spro->exec0_alu0 == spro->exec0_alu1) ? 1 : 0;
-				break;
-			case JNE:
-				sprn->exec1_aluout = (spro->exec0_alu0 != spro->exec0_alu1) ? 1 : 0;
-				break;
-			case JIN:
-				sprn->exec1_aluout = 1;
-				break;
-			case HLT:
-				break;
-		}
+		decide_exec1_aluout_value(sp, spro, sprn);
 
 		// moving instruction values in pipeline
 		sprn->exec1_pc = spro->exec0_pc;
@@ -399,7 +450,9 @@ static void sp_ctl(sp_t *sp)
         sprn->exec1_src1 = spro->exec0_src1;
         sprn->exec1_immediate = spro->exec0_immediate;
 		sprn->exec1_alu0 = spro->exec0_alu0;
+		decide_exec1_alu0_value(sp, spro, sprn);
 		sprn->exec1_alu1 = spro->exec0_alu1;
+		decide_exec1_alu1_value(sp, spro, sprn);
 
 		sprn->exec1_active = 1;
 	}

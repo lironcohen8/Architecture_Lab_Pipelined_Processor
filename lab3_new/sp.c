@@ -1,3 +1,8 @@
+/*
+ * Liron Cohen 207481268
+ * Yuval Mor 209011543
+ */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

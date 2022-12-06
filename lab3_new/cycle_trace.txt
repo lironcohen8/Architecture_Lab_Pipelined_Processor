@@ -463,13 +463,248 @@ exec1_src1 00000004
 exec1_dst 00000000
 exec1_immediate 0000000b
 exec1_alu0 00000001
-exec1_alu1 00000000
+exec1_alu1 00000008
 exec1_aluout 00000000
 
 
 
 cycle 10
 cycle_counter 0000000a
+r2 0000000f
+r3 00000001
+r4 00000008
+r5 00000000
+r6 00000000
+r7 00000000
+fetch0_active 00000001
+fetch0_pc 00000004
+fetch1_active 00000000
+fetch1_pc 00000008
+dec0_active 00000000
+dec0_pc 00000007
+dec0_inst 01b50000
+dec1_active 00000000
+dec1_pc 00000006
+dec1_inst 11820000
+dec1_opcode 00000008
+dec1_src0 00000000
+dec1_src1 00000002
+dec1_dst 00000006
+dec1_immediate 00000000
+exec0_active 00000000
+exec0_pc 00000005
+exec0_inst 00910001
+exec0_opcode 00000000
+exec0_src0 00000002
+exec0_src1 00000001
+exec0_dst 00000002
+exec0_immediate 00000001
+exec0_alu0 0000000f
+exec0_alu1 00000001
+exec1_active 00000000
+exec1_pc 00000004
+exec1_inst 11420000
+exec1_opcode 00000008
+exec1_src0 00000000
+exec1_src1 00000002
+exec1_dst 00000005
+exec1_immediate 00000000
+exec1_alu0 00000000
+exec1_alu1 0000000f
+exec1_aluout 00000000
+
+
+
+cycle 11
+cycle_counter 0000000b
+r2 0000000f
+r3 00000001
+r4 00000008
+r5 00000000
+r6 00000000
+r7 00000000
+fetch0_active 00000001
+fetch0_pc 00000005
+fetch1_active 00000001
+fetch1_pc 00000004
+dec0_active 00000000
+dec0_pc 00000007
+dec0_inst 01b50000
+dec1_active 00000000
+dec1_pc 00000006
+dec1_inst 11820000
+dec1_opcode 00000008
+dec1_src0 00000000
+dec1_src1 00000002
+dec1_dst 00000006
+dec1_immediate 00000000
+exec0_active 00000000
+exec0_pc 00000005
+exec0_inst 00910001
+exec0_opcode 00000000
+exec0_src0 00000002
+exec0_src1 00000001
+exec0_dst 00000002
+exec0_immediate 00000001
+exec0_alu0 0000000f
+exec0_alu1 00000001
+exec1_active 00000000
+exec1_pc 00000004
+exec1_inst 11420000
+exec1_opcode 00000008
+exec1_src0 00000000
+exec1_src1 00000002
+exec1_dst 00000005
+exec1_immediate 00000000
+exec1_alu0 00000000
+exec1_alu1 0000000f
+exec1_aluout 00000000
+
+
+
+cycle 12
+cycle_counter 0000000c
+r2 0000000f
+r3 00000001
+r4 00000008
+r5 00000000
+r6 00000000
+r7 00000000
+fetch0_active 00000001
+fetch0_pc 00000006
+fetch1_active 00000001
+fetch1_pc 00000005
+dec0_active 00000001
+dec0_pc 00000004
+dec0_inst 11420000
+dec1_active 00000000
+dec1_pc 00000006
+dec1_inst 11820000
+dec1_opcode 00000008
+dec1_src0 00000000
+dec1_src1 00000002
+dec1_dst 00000006
+dec1_immediate 00000000
+exec0_active 00000000
+exec0_pc 00000005
+exec0_inst 00910001
+exec0_opcode 00000000
+exec0_src0 00000002
+exec0_src1 00000001
+exec0_dst 00000002
+exec0_immediate 00000001
+exec0_alu0 0000000f
+exec0_alu1 00000001
+exec1_active 00000000
+exec1_pc 00000004
+exec1_inst 11420000
+exec1_opcode 00000008
+exec1_src0 00000000
+exec1_src1 00000002
+exec1_dst 00000005
+exec1_immediate 00000000
+exec1_alu0 00000000
+exec1_alu1 0000000f
+exec1_aluout 00000000
+
+
+
+cycle 13
+cycle_counter 0000000d
+r2 0000000f
+r3 00000001
+r4 00000008
+r5 00000000
+r6 00000000
+r7 00000000
+fetch0_active 00000001
+fetch0_pc 00000007
+fetch1_active 00000001
+fetch1_pc 00000006
+dec0_active 00000001
+dec0_pc 00000005
+dec0_inst 00910001
+dec1_active 00000001
+dec1_pc 00000004
+dec1_inst 11420000
+dec1_opcode 00000008
+dec1_src0 00000000
+dec1_src1 00000002
+dec1_dst 00000005
+dec1_immediate 00000000
+exec0_active 00000000
+exec0_pc 00000005
+exec0_inst 00910001
+exec0_opcode 00000000
+exec0_src0 00000002
+exec0_src1 00000001
+exec0_dst 00000002
+exec0_immediate 00000001
+exec0_alu0 0000000f
+exec0_alu1 00000001
+exec1_active 00000000
+exec1_pc 00000004
+exec1_inst 11420000
+exec1_opcode 00000008
+exec1_src0 00000000
+exec1_src1 00000002
+exec1_dst 00000005
+exec1_immediate 00000000
+exec1_alu0 00000000
+exec1_alu1 0000000f
+exec1_aluout 00000000
+
+
+
+cycle 14
+cycle_counter 0000000e
+r2 0000000f
+r3 00000001
+r4 00000008
+r5 00000000
+r6 00000000
+r7 00000000
+fetch0_active 00000001
+fetch0_pc 00000008
+fetch1_active 00000001
+fetch1_pc 00000007
+dec0_active 00000001
+dec0_pc 00000006
+dec0_inst 11820000
+dec1_active 00000001
+dec1_pc 00000005
+dec1_inst 00910001
+dec1_opcode 00000000
+dec1_src0 00000002
+dec1_src1 00000001
+dec1_dst 00000002
+dec1_immediate 00000001
+exec0_active 00000001
+exec0_pc 00000004
+exec0_inst 11420000
+exec0_opcode 00000008
+exec0_src0 00000000
+exec0_src1 00000002
+exec0_dst 00000005
+exec0_immediate 00000000
+exec0_alu0 00000000
+exec0_alu1 0000000f
+exec1_active 00000000
+exec1_pc 00000004
+exec1_inst 11420000
+exec1_opcode 00000008
+exec1_src0 00000000
+exec1_src1 00000002
+exec1_dst 00000005
+exec1_immediate 00000000
+exec1_alu0 00000000
+exec1_alu1 0000000f
+exec1_aluout 00000000
+
+
+
+cycle 15
+cycle_counter 0000000f
 r2 0000000f
 r3 00000001
 r4 00000008
@@ -515,8 +750,8 @@ exec1_aluout 00000000
 
 
 
-cycle 11
-cycle_counter 0000000b
+cycle 16
+cycle_counter 00000010
 r2 0000000f
 r3 00000001
 r4 00000008
@@ -562,8 +797,8 @@ exec1_aluout 00000010
 
 
 
-cycle 12
-cycle_counter 0000000c
+cycle 17
+cycle_counter 00000011
 r2 00000010
 r3 00000001
 r4 00000008
@@ -604,13 +839,13 @@ exec1_src1 00000002
 exec1_dst 00000006
 exec1_immediate 00000000
 exec1_alu0 00000000
-exec1_alu1 baadbaad
+exec1_alu1 00000010
 exec1_aluout 00000010
 
 
 
-cycle 13
-cycle_counter 0000000d
+cycle 18
+cycle_counter 00000012
 r2 00000010
 r3 00000001
 r4 00000008
@@ -650,14 +885,14 @@ exec1_src0 00000006
 exec1_src1 00000005
 exec1_dst 00000006
 exec1_immediate 00000000
-exec1_alu0 00000010
+exec1_alu0 00000000
 exec1_alu1 00000000
 exec1_aluout 00000000
 
 
 
-cycle 14
-cycle_counter 0000000e
+cycle 19
+cycle_counter 00000013
 r2 00000010
 r3 00000001
 r4 00000008
@@ -700,147 +935,6 @@ exec1_immediate 00000000
 exec1_alu0 00000000
 exec1_alu1 00000010
 exec1_aluout 00000000
-
-
-
-cycle 15
-cycle_counter 0000000f
-r2 00000010
-r3 00000001
-r4 00000008
-r5 00000000
-r6 00000000
-r7 00000000
-fetch0_active 00000001
-fetch0_pc 0000000e
-fetch1_active 00000001
-fetch1_pc 0000000d
-dec0_active 00000001
-dec0_pc 0000000c
-dec0_inst 00000000
-dec1_active 00000001
-dec1_pc 0000000b
-dec1_inst 30000000
-dec1_opcode 00000018
-dec1_src0 00000000
-dec1_src1 00000000
-dec1_dst 00000000
-dec1_immediate 00000000
-exec0_active 00000001
-exec0_pc 0000000a
-exec0_inst 24000003
-exec0_opcode 00000012
-exec0_src0 00000000
-exec0_src1 00000000
-exec0_dst 00000000
-exec0_immediate 00000003
-exec0_alu0 00000000
-exec0_alu1 00000000
-exec1_active 00000001
-exec1_pc 00000009
-exec1_inst 00d90001
-exec1_opcode 00000000
-exec1_src0 00000003
-exec1_src1 00000001
-exec1_dst 00000003
-exec1_immediate 00000001
-exec1_alu0 00000001
-exec1_alu1 00000001
-exec1_aluout 00000002
-
-
-
-cycle 16
-cycle_counter 00000010
-r2 00000010
-r3 00000002
-r4 00000008
-r5 00000000
-r6 00000000
-r7 00000000
-fetch0_active 00000001
-fetch0_pc 0000000f
-fetch1_active 00000001
-fetch1_pc 0000000e
-dec0_active 00000001
-dec0_pc 0000000d
-dec0_inst 00000000
-dec1_active 00000001
-dec1_pc 0000000c
-dec1_inst 00000000
-dec1_opcode 00000000
-dec1_src0 00000000
-dec1_src1 00000000
-dec1_dst 00000000
-dec1_immediate 00000000
-exec0_active 00000001
-exec0_pc 0000000b
-exec0_inst 30000000
-exec0_opcode 00000018
-exec0_src0 00000000
-exec0_src1 00000000
-exec0_dst 00000000
-exec0_immediate 00000000
-exec0_alu0 00000000
-exec0_alu1 00000000
-exec1_active 00000001
-exec1_pc 0000000a
-exec1_inst 24000003
-exec1_opcode 00000012
-exec1_src0 00000000
-exec1_src1 00000000
-exec1_dst 00000000
-exec1_immediate 00000003
-exec1_alu0 00000000
-exec1_alu1 00000000
-exec1_aluout 00000001
-
-
-
-cycle 17
-cycle_counter 00000011
-r2 00000010
-r3 00000002
-r4 00000008
-r5 00000000
-r6 00000000
-r7 0000000a
-fetch0_active 00000001
-fetch0_pc 00000003
-fetch1_active 00000001
-fetch1_pc 0000000f
-dec0_active 00000001
-dec0_pc 0000000e
-dec0_inst 00000000
-dec1_active 00000001
-dec1_pc 0000000d
-dec1_inst 00000000
-dec1_opcode 00000000
-dec1_src0 00000000
-dec1_src1 00000000
-dec1_dst 00000000
-dec1_immediate 00000000
-exec0_active 00000001
-exec0_pc 0000000c
-exec0_inst 00000000
-exec0_opcode 00000000
-exec0_src0 00000000
-exec0_src1 00000000
-exec0_dst 00000000
-exec0_immediate 00000000
-exec0_alu0 00000000
-exec0_alu1 00000000
-exec1_active 00000001
-exec1_pc 0000000b
-exec1_inst 30000000
-exec1_opcode 00000018
-exec1_src0 00000000
-exec1_src1 00000000
-exec1_dst 00000000
-exec1_immediate 00000000
-exec1_alu0 00000000
-exec1_alu1 00000000
-exec1_aluout 00000001
 
 
 

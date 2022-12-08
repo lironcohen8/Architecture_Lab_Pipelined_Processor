@@ -172,7 +172,7 @@ static bool is_branch_operation(int opcode)
 
 static void handle_branch_prediction(sp_registers_t *spro, sp_registers_t *sprn) {
 	int opcode = (spro->dec0_inst & OPCODE_MASK) >> OPCODE_SHIFT;
-	if (opcode == JLT || opcode == JLE || opcode == JEQ || opcode == JNE) {
+	if (opcode == JLT || opcode == JLE || opcode == JEQ || opcode == JNE) {//TODO: why do we need it again if we do it outside.
 		int pc = spro->dec0_pc;
 		if (branch_hist[pc % branch_hist_SIZE] > PREDICT_WEAK_NT) { // branch is taken, we need to flush the pipeline
 			sprn->fetch0_pc = pc;
@@ -458,8 +458,8 @@ static void trace_inst_to_file(sp_t *sp, sp_registers_t *spro, sp_registers_t *s
 	}
 	else if (spro->exec1_opcode == ST) {
 		fprintf(inst_trace_fp,">>>> EXEC: MEM[%i] = R[%i] = %08x <<<<\n\n", (spro->exec1_src1 == 1)? spro->exec1_immediate : spro->r[spro->exec1_src1], spro->exec1_src0, spro->r[spro->exec1_src0]);
-		llsim_mem_set_datain(sp->sramd,spro->exec1_alu0,31,0);
-		llsim_mem_write(sp->sramd,spro->exec1_alu1);
+		// llsim_mem_set_datain(sp->sramd,spro->exec1_alu0,31,0);//TODO: make sure unnecessary
+		// llsim_mem_write(sp->sramd,spro->exec1_alu1);
 	}
 	else if (spro->exec1_opcode == JLT) {
 		if (spro->exec1_aluout == 1) {
@@ -681,6 +681,7 @@ static void sp_ctl(sp_t *sp)
 
 	// exec1
 	if (spro->exec1_active) { // writing back
+	//TODO: maybe missing a "exec1:" print here
 		trace_inst_to_file(sp, spro, sprn);
 
 		inst_cnt = inst_cnt + 1;

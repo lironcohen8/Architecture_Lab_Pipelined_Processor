@@ -656,7 +656,6 @@ static void sp_ctl(sp_t *sp)
 
 	// exec0
 	if (spro->exec0_active) { // executing ALU and LD operations
-		decide_exec1_aluout_value(sp, spro, sprn);
 
 		// moving instruction values in pipeline
 		sprn->exec1_pc = spro->exec0_pc;
@@ -670,6 +669,7 @@ static void sp_ctl(sp_t *sp)
 		decide_exec1_alu0_value(sp, spro, sprn);
 		sprn->exec1_alu1 = spro->exec0_alu1;
 		decide_exec1_alu1_value(sp, spro, sprn);
+		decide_exec1_aluout_value(sp, spro, sprn);
 
 		sprn->exec1_active = 1;
 	}

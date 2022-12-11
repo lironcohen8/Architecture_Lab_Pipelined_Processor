@@ -171,16 +171,14 @@ static bool is_branch_operation(int opcode)
 }
 
 static void handle_branch_prediction(sp_registers_t *spro, sp_registers_t *sprn) {
-	int opcode = (spro->dec0_inst & OPCODE_MASK) >> OPCODE_SHIFT;
-	if (opcode == JLT || opcode == JLE || opcode == JEQ || opcode == JNE) {//TODO: why do we need it again if we do it outside.
-		int pc = spro->dec0_pc;
-		if (branch_hist[pc % branch_hist_SIZE] > PREDICT_WEAK_NT) { // branch is taken, we need to flush the pipeline
-			sprn->fetch0_pc = pc;
-            sprn->dec0_active = 0;
-            sprn->fetch1_active = 0;
-            sprn->fetch0_active = 1;
-		}
+	int pc = spro->dec0_pc;
+	if (branch_hist[pc % branch_hist_SIZE] > PREDICT_WEAK_NT) { // branch is taken, we need to flush the pipeline
+		sprn->fetch0_pc = pc;
+		sprn->dec0_active = 0;
+		sprn->fetch1_active = 0;
+		sprn->fetch0_active = 1;
 	}
+	
 }
 
 static void handle_load_after_store(sp_registers_t *spro, sp_registers_t *sprn) {

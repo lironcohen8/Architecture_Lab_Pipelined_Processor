@@ -202,7 +202,7 @@ static void handle_load_after_store(sp_registers_t *spro, sp_registers_t *sprn) 
 /* This method updates the branch history according to branch resolution */
 static void update_branch_history(sp_registers_t *spro, sp_registers_t *sprn, bool is_branch_taken) {
 	int pc = spro->exec1_pc;
-	if (is_branch_taken) {
+	if (is_branch_taken) { // if branch is taken
 		sprn->r[7] = pc;
 		switch (branch_hist[pc % branch_hist_SIZE]) {
 			case(PREDICT_STRONG_NT):
@@ -219,7 +219,7 @@ static void update_branch_history(sp_registers_t *spro, sp_registers_t *sprn, bo
 				break;
 		}
 	}
-	else {
+	else { // if branch is not taken
 		switch (branch_hist[pc % branch_hist_SIZE]) {
 			case(PREDICT_STRONG_NT):
 				branch_hist[pc % branch_hist_SIZE] = PREDICT_STRONG_NT;
@@ -266,11 +266,11 @@ static bool check_if_flush_is_needed(sp_registers_t* spro, int next_pc) {
 /* This method decides the value of exec0_alu0 while taking into account
    Bypasses and branch taken */
 static void decide_exec0_alu0_value(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn) {
-	if (spro->dec1_src0 == 0) {
+	if (spro->dec1_src0 == 0) { // r0
 		sprn->exec0_alu0 = 0;
 	}
 
-	else if (spro->dec1_src0 == 1) {
+	else if (spro->dec1_src0 == 1) { // imm
 		sprn->exec0_alu0 = spro->dec1_immediate;
 	}
 
@@ -291,7 +291,7 @@ static void decide_exec0_alu0_value(sp_t *sp, sp_registers_t *spro, sp_registers
 		sprn->exec0_alu0 = spro->exec1_pc;
 	}
 
-	else {
+	else { // no hazards
 		sprn->exec0_alu0 = spro->r[spro->dec1_src0];
 	}
 }
@@ -299,11 +299,11 @@ static void decide_exec0_alu0_value(sp_t *sp, sp_registers_t *spro, sp_registers
 /* This method decides the value of exec0_alu1 while taking into account
    Bypasses and branch taken */
 static void decide_exec0_alu1_value(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn) {
-	if (spro->dec1_src1 == 0) {
+	if (spro->dec1_src1 == 0) { // r0
 		sprn->exec0_alu1 = 0;
 	}
 
-	else if (spro->dec1_src1 == 1) {
+	else if (spro->dec1_src1 == 1) { // imm
 		sprn->exec0_alu1 = spro->dec1_immediate;
 	}
 
@@ -324,7 +324,7 @@ static void decide_exec0_alu1_value(sp_t *sp, sp_registers_t *spro, sp_registers
 		sprn->exec0_alu1 = spro->exec1_pc;
 	}
 
-	else {
+	else { // no hazards
 		sprn->exec0_alu1 = spro->r[spro->dec1_src1];
 	}
 }
@@ -370,7 +370,7 @@ static int decide_exec1_aluout_value(sp_t *sp, sp_registers_t *spro, sp_register
 /* This method decides the value of exec1_alu0 while taking into account
    Bypasses and branch taken */
 static void decide_exec1_alu0_value(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn, int *alu0) {
-	if (spro->exec0_src0 != 0 && spro->exec0_src0 != 1) {
+	if (spro->exec0_src0 != 0 && spro->exec0_src0 != 1) { // not r0 or imm
 		if (spro->exec1_active && spro->exec1_dst == spro->exec0_src0 &&
         (spro->exec1_opcode == ADD || spro->exec1_opcode == SUB || spro->exec1_opcode == AND ||
 		spro->exec1_opcode == OR || spro->exec1_opcode == XOR || spro->exec1_opcode == LSF ||
@@ -393,7 +393,7 @@ static void decide_exec1_alu0_value(sp_t *sp, sp_registers_t *spro, sp_registers
 /* This method decides the value of exec1_alu1 while taking into account
    Bypasses and branch taken */
 static void decide_exec1_alu1_value(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn, int* alu1) {
-	if (spro->exec0_src1 != 0 && spro->exec0_src1 != 1) {
+	if (spro->exec0_src1 != 0 && spro->exec0_src1 != 1) { // not r0 or imm
 		if (spro->exec1_active && spro->exec1_dst == spro->exec0_src1 &&
         (spro->exec1_opcode == ADD || spro->exec1_opcode == SUB || spro->exec1_opcode == AND ||
 		spro->exec1_opcode == OR || spro->exec1_opcode == XOR || spro->exec1_opcode == LSF ||

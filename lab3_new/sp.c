@@ -165,11 +165,13 @@ static void dump_sram(sp_t *sp, char *name, llsim_memory_t *sram)
 	fclose(fp);
 }
 
+/* This methods checks if the opcode represents a branch operation */
 static bool is_branch_operation(int opcode)
 {
     return opcode == JLT || opcode == JLE || opcode == JEQ || opcode == JNE || opcode == JIN;
 }
 
+/* This methods checks the branch history and if the branch should be taken, flushed the pipeline */
 static void handle_branch_prediction(sp_registers_t *spro, sp_registers_t *sprn) {
 	int pc = spro->dec0_pc;
 	if (branch_hist[pc % branch_hist_SIZE] > PREDICT_WEAK_NT) { // branch is taken, we need to flush the pipeline
@@ -181,6 +183,7 @@ static void handle_branch_prediction(sp_registers_t *spro, sp_registers_t *sprn)
 	
 }
 
+/* This method handles load and store at the same cycle by adding stalls where needed */
 static void handle_load_after_store(sp_registers_t *spro, sp_registers_t *sprn) {
 	// stalling previous and next instructions
 	sprn->fetch1_active = 0;
@@ -196,6 +199,7 @@ static void handle_load_after_store(sp_registers_t *spro, sp_registers_t *sprn) 
 	sprn->dec0_active = spro->dec0_active;
 }
 
+/* This method updates the branch history according to branch resolution */
 static void update_branch_history(sp_registers_t *spro, sp_registers_t *sprn, bool is_branch_taken) {
 	int pc = spro->exec1_pc;
 	if (is_branch_taken) {
@@ -233,6 +237,8 @@ static void update_branch_history(sp_registers_t *spro, sp_registers_t *sprn, bo
 	}
 }
 
+/* This method checks if pipeline contains the pc of the instruction 
+   That should be executed after branch. If not, needs to flush */
 static bool check_if_flush_is_needed(sp_registers_t* spro, int next_pc) {
 	// next instruction should has the pc after branch is taken
 	// if it's not, we need to flush
@@ -257,6 +263,8 @@ static bool check_if_flush_is_needed(sp_registers_t* spro, int next_pc) {
 	}
 }
 
+/* This method decides the value of exec0_alu0 while taking into account
+   Bypasses and branch taken */
 static void decide_exec0_alu0_value(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn) {
 	if (spro->dec1_src0 == 0) {
 		sprn->exec0_alu0 = 0;
@@ -288,6 +296,8 @@ static void decide_exec0_alu0_value(sp_t *sp, sp_registers_t *spro, sp_registers
 	}
 }
 
+/* This method decides the value of exec0_alu1 while taking into account
+   Bypasses and branch taken */
 static void decide_exec0_alu1_value(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn) {
 	if (spro->dec1_src1 == 0) {
 		sprn->exec0_alu1 = 0;
@@ -319,6 +329,7 @@ static void decide_exec0_alu1_value(sp_t *sp, sp_registers_t *spro, sp_registers
 	}
 }
 
+/* This method decides the value of exec1_aluout according to the opcode */
 static int decide_exec1_aluout_value(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn, int alu0, int alu1) {
 	switch (spro->exec0_opcode) {
 	case ADD:
@@ -356,6 +367,8 @@ static int decide_exec1_aluout_value(sp_t *sp, sp_registers_t *spro, sp_register
 	return 0;
 }
 
+/* This method decides the value of exec1_alu0 while taking into account
+   Bypasses and branch taken */
 static void decide_exec1_alu0_value(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn, int *alu0) {
 	if (spro->exec0_src0 != 0 && spro->exec0_src0 != 1) {
 		if (spro->exec1_active && spro->exec1_dst == spro->exec0_src0 &&
@@ -377,6 +390,8 @@ static void decide_exec1_alu0_value(sp_t *sp, sp_registers_t *spro, sp_registers
     }
 }
 
+/* This method decides the value of exec1_alu1 while taking into account
+   Bypasses and branch taken */
 static void decide_exec1_alu1_value(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn, int* alu1) {
 	if (spro->exec0_src1 != 0 && spro->exec0_src1 != 1) {
 		if (spro->exec1_active && spro->exec1_dst == spro->exec0_src1 &&
@@ -398,6 +413,7 @@ static void decide_exec1_alu1_value(sp_t *sp, sp_registers_t *spro, sp_registers
     }
 }
 
+/* This method prints the instructions trace file */
 static void trace_inst_to_file(sp_t *sp, sp_registers_t *spro, sp_registers_t *sprn) {
 	fprintf(inst_trace_fp,"--- instruction %i (%04x) @ PC %i (%04x) -----------------------------------------------------------\n", inst_cnt, inst_cnt, spro->exec1_pc, spro->exec1_pc);
 	fprintf(inst_trace_fp,"pc = %04d, inst = %08x, opcode = %i (%s), dst = %i, src0 = %i, src1 = %i, immediate = %08x\n", spro->exec1_pc, spro->exec1_inst, spro->exec1_opcode, opcode_name[spro->exec1_opcode],
@@ -598,6 +614,7 @@ static void sp_ctl(sp_t *sp)
 			handle_load_after_store(spro, sprn);
 		}
 		else {
+			// decoding the instruction
 			sprn->dec1_opcode = (spro->dec0_inst & OPCODE_MASK) >> OPCODE_SHIFT;
 			sprn->dec1_dst = (spro->dec0_inst & DST_MASK) >> DST_SHIFT;
 			sprn->dec1_src0 = (spro->dec0_inst & SRC0_MASK) >> SRC0_SHIFT;
@@ -621,7 +638,7 @@ static void sp_ctl(sp_t *sp)
 		decide_exec0_alu0_value(sp, spro, sprn);
 		decide_exec0_alu1_value(sp, spro, sprn);
 
-		if (spro->dec1_opcode == LHI) {
+		if (spro->dec1_opcode == LHI) { // special case
 			sprn->exec0_alu1 = spro->dec1_immediate;
 		}
 
@@ -696,11 +713,11 @@ static void sp_ctl(sp_t *sp)
 			bool is_branch_taken = false;
 			int next_pc;
 
-			if (spro->exec1_opcode == JIN) {
+			if (spro->exec1_opcode == JIN) { // always taken
                 next_pc = spro->exec1_alu0 & LOWER_16_BITS_MASK;
                 is_branch_taken = true;
             }
-            else
+            else // a different branch opcode, taken depends on aluout
             {
                 if (spro->exec1_aluout) {
                     next_pc = spro->exec1_immediate & LOWER_16_BITS_MASK;
@@ -711,6 +728,7 @@ static void sp_ctl(sp_t *sp)
 				}
             }
 
+            // Updating the branch history according to the prediciton state machine
 			update_branch_history(spro, sprn, is_branch_taken);
 
 			bool is_flush_needed = check_if_flush_is_needed(spro, next_pc);

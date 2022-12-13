@@ -594,7 +594,7 @@ static void sp_ctl(sp_t *sp)
 			handle_branch_prediction(spro, sprn);
 		}
 
-		if  (opcode == LD && spro->dec1_opcode == ST && spro->dec1_active) { // load after store
+		if  (opcode == LD && spro->dec1_opcode == ST && spro->dec1_active) { // load after store, RAW hazard
 			handle_load_after_store(spro, sprn);
 		}
 		else {
@@ -669,7 +669,6 @@ static void sp_ctl(sp_t *sp)
 
 	// exec1
 	if (spro->exec1_active) { // writing back
-	//TODO: maybe missing a "exec1:" print here
 		trace_inst_to_file(sp, spro, sprn);
 
 		inst_cnt = inst_cnt + 1;

@@ -206,7 +206,7 @@ static void handle_branch_prediction(sp_registers_t *spro, sp_registers_t *sprn)
 		sprn->fetch0_active = 1;
 	}
 }
-
+/* This methods handles the DMA in exec1 */
 static void handle_dma(sp_t *sp, int is_mem_busy) {
 	if (sp->spro->dma_state == DMA_STATE_IDLE)
 	{
@@ -252,12 +252,12 @@ static void handle_dma(sp_t *sp, int is_mem_busy) {
 		}
 	}
 }
-
+/* This methods handles the DMA in exec0 */
 void handle_exec0_dma(sp_registers_t *sprn, sp_registers_t *spro) {
 	if (spro->exec0_opcode == CPY && spro->is_dma_busy == false &&
 		(spro->exec1_opcode != CPY || spro->exec1_active == 0))
 	{
-		// read after write
+		// read after write for src0
 		if (spro->exec1_active && spro->exec1_dst == spro->exec0_src0 &&
 			(spro->exec1_opcode == ADD || spro->exec1_opcode == SUB || spro->exec1_opcode == AND ||
 			 spro->exec1_opcode == OR || spro->exec1_opcode == XOR || spro->exec1_opcode == LSF ||
@@ -271,7 +271,7 @@ void handle_exec0_dma(sp_registers_t *sprn, sp_registers_t *spro) {
 			sprn->dma_source = spro->r[spro->exec0_src0];
 		}
 
-		// read after write
+		// read after write for src1
 		if (spro->exec1_active && spro->exec1_dst == spro->exec0_src1 &&
 			(spro->exec1_opcode == ADD || spro->exec1_opcode == SUB || spro->exec1_opcode == AND ||
 			 spro->exec1_opcode == OR || spro->exec1_opcode == XOR || spro->exec1_opcode == LSF ||
@@ -279,10 +279,12 @@ void handle_exec0_dma(sp_registers_t *sprn, sp_registers_t *spro) {
 			 spro->exec1_opcode == CPY || spro->exec1_opcode == POL))
 		{
 			sprn->dma_remain = spro->exec1_aluout;
+			sprn->dma_length = spro->exec1_aluout;
 		}
 		else
 		{
 			sprn->dma_remain = spro->r[spro->exec0_src1];
+			sprn->dma_length = spro->r[spro->exec0_src1];
 		}
 
 		sprn->dma_destination = spro->r[spro->exec0_dst];

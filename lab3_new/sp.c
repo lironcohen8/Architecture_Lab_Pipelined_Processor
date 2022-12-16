@@ -174,8 +174,7 @@ static char opcode_name[32][4] = {"ADD", "SUB", "LSF", "RSF", "AND", "OR", "XOR"
 static int inst_cnt = 0;
 static int branch_hist[branch_hist_SIZE];
 
-static void dump_sram(sp_t *sp, char *name, llsim_memory_t *sram)
-{
+static void dump_sram(sp_t *sp, char *name, llsim_memory_t *sram) {
 	FILE *fp;
 	int i;
 
@@ -191,8 +190,7 @@ static void dump_sram(sp_t *sp, char *name, llsim_memory_t *sram)
 }
 
 /* This methods checks if the opcode represents a branch operation */
-static bool is_branch_operation(int opcode)
-{
+static bool is_branch_operation(int opcode) {
 
 	return opcode == JLT || opcode == JLE || opcode == JEQ || opcode == JNE || opcode == JIN;
 }
@@ -209,8 +207,7 @@ static void handle_branch_prediction(sp_registers_t *spro, sp_registers_t *sprn)
 	}
 }
 
-static void handle_dma(sp_t *sp, int is_mem_busy)
-{
+static void handle_dma(sp_t *sp, int is_mem_busy) {
 	if (sp->spro->dma_state == DMA_STATE_IDLE)
 	{
 		if (is_dma_active && !is_mem_busy)
@@ -256,8 +253,7 @@ static void handle_dma(sp_t *sp, int is_mem_busy)
 	}
 }
 
-void handle_exec0_dma(sp_registers_t *sprn, sp_registers_t *spro)
-{
+void handle_exec0_dma(sp_registers_t *sprn, sp_registers_t *spro) {
 	if (spro->exec0_opcode == CPY && spro->is_dma_busy == false &&
 		(spro->exec1_opcode != CPY || spro->exec1_active == 0))
 	{
@@ -350,8 +346,6 @@ static void update_branch_history(sp_registers_t *spro, sp_registers_t *sprn, bo
 /* This method checks if pipeline contains the pc of the instruction 
    That should be executed after branch. If not, needs to flush */
 static bool check_if_flush_is_needed(sp_registers_t* spro, int next_pc) {
-	// next instruction should has the pc after branch is taken
-	// if it's not, we need to flush
 	if (spro->fetch0_active == 1 && spro->fetch0_active != next_pc)
 	{
 		return true;
@@ -368,7 +362,7 @@ static bool check_if_flush_is_needed(sp_registers_t* spro, int next_pc) {
 	{
 		return true;
 	}
-	else if (spro->fetch0_active == 1 && spro->fetch0_pc != next_pc)
+	else if (spro->exec0_active == 1 && spro->exec0_pc != next_pc)
 	{
 		return true;
 	}
@@ -405,7 +399,7 @@ static void decide_exec0_alu0_value(sp_t *sp, sp_registers_t *spro, sp_registers
 	else if (spro->exec1_active && spro->exec1_aluout == 1 && spro->dec1_src0 == 7 &&
 			 (spro->exec1_opcode == JLT || spro->exec1_opcode == JLE || spro->exec1_opcode == JEQ ||
 			  spro->exec1_opcode == JNE || spro->exec1_opcode == JIN))
-	{ // branch is taken, need to flush value of r[7]
+	{ // branch in exec1 is taken, need to get the pc value for r7 reading
 		sprn->exec0_alu0 = spro->exec1_pc;
 	}
 
@@ -441,7 +435,7 @@ static void decide_exec0_alu1_value(sp_t *sp, sp_registers_t *spro, sp_registers
 	else if (spro->exec1_active && spro->exec1_aluout == 1 && spro->dec1_src1 == 7 &&
 			 (spro->exec1_opcode == JLT || spro->exec1_opcode == JLE || spro->exec1_opcode == JEQ ||
 			  spro->exec1_opcode == JNE || spro->exec1_opcode == JIN))
-	{ // branch is taken, need to flush value of r[7]
+	{ // branch in exec1 is taken, need to get the pc value for r7 reading
 		sprn->exec0_alu1 = spro->exec1_pc;
 	}
 
@@ -510,7 +504,7 @@ static void decide_exec1_alu0_value(sp_t *sp, sp_registers_t *spro, sp_registers
 		else if (spro->exec1_active && spro->exec0_src0 == 7 &&
 				 (spro->exec1_opcode == JLT || spro->exec1_opcode == JLE || spro->exec1_opcode == JEQ ||
 				  spro->exec1_opcode == JNE || spro->exec1_opcode == JIN))
-		{ // branch is taken, need to flush value of r[7]
+		{ // // branch in exec1 is taken, need to get the pc value for r7 reading
 			*alu0 = spro->exec1_pc;
 		}
 	}
@@ -536,7 +530,7 @@ static void decide_exec1_alu1_value(sp_t *sp, sp_registers_t *spro, sp_registers
 		else if (spro->exec1_active && spro->exec0_src1 == 7 &&
 				 (spro->exec1_opcode == JLT || spro->exec1_opcode == JLE || spro->exec1_opcode == JEQ ||
 				  spro->exec1_opcode == JNE || spro->exec1_opcode == JIN))
-		{ // branch is taken, need to flush value of r[7]
+		{ // branch in exec1 is taken, need to get the pc value for r7 reading
 			*alu1 = spro->exec1_pc;
 		}
 	}

@@ -146,6 +146,7 @@ static void sp_reset(sp_t *sp)
 
 #define HLT 24
 
+// decode defines
 #define OPCODE_MASK 0x3E000000
 #define OPCODE_SHIFT 0x19
 #define DST_MASK 0x01C00000
@@ -160,6 +161,7 @@ static void sp_reset(sp_t *sp)
 #define SIGN_EXT_MASK 0x00008000
 #define SIGN_EXT 0xFFFF0000
 
+// branch prediction defines
 #define branch_hist_SIZE 10
 #define PREDICT_STRONG_NT 0
 #define PREDICT_WEAK_NT 1
@@ -198,16 +200,55 @@ static bool is_branch_operation(int opcode) {
 /* This methods checks the branch history and if the branch should be taken, flushed the pipeline */
 static void handle_branch_prediction(sp_registers_t *spro, sp_registers_t *sprn) {
 	int pc = spro->dec0_pc;
-	if (branch_hist[pc % branch_hist_SIZE] > PREDICT_WEAK_NT)
-	{ // branch is taken, we need to flush the pipeline
+	if (branch_hist[pc % branch_hist_SIZE] > PREDICT_WEAK_NT) { // branch is taken, we need to flush the pipeline
 		sprn->fetch0_pc = pc;
 		sprn->dec0_active = 0;
 		sprn->fetch1_active = 0;
 		sprn->fetch0_active = 1;
 	}
 }
+
+/* This methods handles the DMA in exec0 */
+static void handle_exec0_dma(sp_registers_t *sprn, sp_registers_t *spro) {
+	if (spro->exec0_opcode == CPY && spro->is_dma_busy == false &&
+		(spro->exec1_opcode != CPY || spro->exec1_active == 0))
+	{
+		// read after write for src0
+		if (spro->exec1_active && spro->exec1_dst == spro->exec0_src0 &&
+			(spro->exec1_opcode == ADD || spro->exec1_opcode == SUB || spro->exec1_opcode == AND ||
+			 spro->exec1_opcode == OR || spro->exec1_opcode == XOR || spro->exec1_opcode == LSF ||
+			 spro->exec1_opcode == RSF || spro->exec1_opcode == LHI ||
+			 spro->exec1_opcode == CPY || spro->exec1_opcode == POL))
+		{
+			sprn->dma_source = spro->exec1_aluout;
+		}
+		else
+		{
+			sprn->dma_source = spro->r[spro->exec0_src0];
+		}
+
+		// read after write for src1
+		if (spro->exec1_active && spro->exec1_dst == spro->exec0_src1 &&
+			(spro->exec1_opcode == ADD || spro->exec1_opcode == SUB || spro->exec1_opcode == AND ||
+			 spro->exec1_opcode == OR || spro->exec1_opcode == XOR || spro->exec1_opcode == LSF ||
+			 spro->exec1_opcode == RSF || spro->exec1_opcode == LHI ||
+			 spro->exec1_opcode == CPY || spro->exec1_opcode == POL))
+		{
+			sprn->dma_remain = spro->exec1_aluout;
+			sprn->dma_length = spro->exec1_aluout;
+		}
+		else
+		{
+			sprn->dma_remain = spro->r[spro->exec0_src1];
+			sprn->dma_length = spro->r[spro->exec0_src1];
+		}
+
+		sprn->dma_destination = spro->r[spro->exec0_dst];
+	}
+}
+
 /* This methods handles the DMA in exec1 */
-static void handle_dma(sp_t *sp, int is_mem_busy) {
+static void handle_exec1_dma(sp_t *sp, int is_mem_busy) {
 	if (sp->spro->dma_state == DMA_STATE_IDLE)
 	{
 		if (is_dma_active && !is_mem_busy)
@@ -252,56 +293,18 @@ static void handle_dma(sp_t *sp, int is_mem_busy) {
 		}
 	}
 }
-/* This methods handles the DMA in exec0 */
-void handle_exec0_dma(sp_registers_t *sprn, sp_registers_t *spro) {
-	if (spro->exec0_opcode == CPY && spro->is_dma_busy == false &&
-		(spro->exec1_opcode != CPY || spro->exec1_active == 0))
-	{
-		// read after write for src0
-		if (spro->exec1_active && spro->exec1_dst == spro->exec0_src0 &&
-			(spro->exec1_opcode == ADD || spro->exec1_opcode == SUB || spro->exec1_opcode == AND ||
-			 spro->exec1_opcode == OR || spro->exec1_opcode == XOR || spro->exec1_opcode == LSF ||
-			 spro->exec1_opcode == RSF || spro->exec1_opcode == LHI ||
-			 spro->exec1_opcode == CPY || spro->exec1_opcode == POL))
-		{
-			sprn->dma_source = spro->exec1_aluout;
-		}
-		else
-		{
-			sprn->dma_source = spro->r[spro->exec0_src0];
-		}
 
-		// read after write for src1
-		if (spro->exec1_active && spro->exec1_dst == spro->exec0_src1 &&
-			(spro->exec1_opcode == ADD || spro->exec1_opcode == SUB || spro->exec1_opcode == AND ||
-			 spro->exec1_opcode == OR || spro->exec1_opcode == XOR || spro->exec1_opcode == LSF ||
-			 spro->exec1_opcode == RSF || spro->exec1_opcode == LHI ||
-			 spro->exec1_opcode == CPY || spro->exec1_opcode == POL))
-		{
-			sprn->dma_remain = spro->exec1_aluout;
-			sprn->dma_length = spro->exec1_aluout;
-		}
-		else
-		{
-			sprn->dma_remain = spro->r[spro->exec0_src1];
-			sprn->dma_length = spro->r[spro->exec0_src1];
-		}
-
-		sprn->dma_destination = spro->r[spro->exec0_dst];
-	}
-}
-
-/* This method handles load and store at the same cycle by adding stalls where needed */
+/* This method handles load and store at the same cycle by adding stall where needed */
 static void handle_load_after_store(sp_registers_t *spro, sp_registers_t *sprn) {
-	// stalling previous and next instructions
+	// stalling instruction
 	sprn->fetch1_active = 0;
 	sprn->dec1_active = 0;
 
-	// fetch1 should return to inst in fetch0
+	// fetch1 should return to instruction in fetch0
 	sprn->fetch0_active = spro->fetch1_active;
 	sprn->fetch0_pc = spro->fetch1_pc;
 
-	// doing the current stage again
+	// repeating the current stage again
 	sprn->dec0_pc = spro->dec0_pc;
 	sprn->dec0_inst = spro->dec0_inst;
 	sprn->dec0_active = spro->dec0_active;
@@ -348,28 +351,22 @@ static void update_branch_history(sp_registers_t *spro, sp_registers_t *sprn, bo
 /* This method checks if pipeline contains the pc of the instruction 
    That should be executed after branch. If not, needs to flush */
 static bool check_if_flush_is_needed(sp_registers_t* spro, int next_pc) {
-	if (spro->fetch0_active == 1 && spro->fetch0_active != next_pc)
-	{
+	if (spro->fetch0_active == 1 && spro->fetch0_active != next_pc)	{
 		return true;
 	}
-	else if (spro->fetch1_active == 1 && spro->fetch1_pc != next_pc)
-	{
+	else if (spro->fetch1_active == 1 && spro->fetch1_pc != next_pc) {
 		return true;
 	}
-	else if (spro->dec0_active == 1 && spro->dec0_active != next_pc)
-	{
+	else if (spro->dec0_active == 1 && spro->dec0_active != next_pc) {
 		return true;
 	}
-	else if (spro->dec1_active == 1 && spro->dec1_pc != next_pc)
-	{
+	else if (spro->dec1_active == 1 && spro->dec1_pc != next_pc) {
 		return true;
 	}
-	else if (spro->exec0_active == 1 && spro->exec0_pc != next_pc)
-	{
+	else if (spro->exec0_active == 1 && spro->exec0_pc != next_pc) {
 		return true;
 	}
-	else
-	{
+	else {
 		return false;
 	}
 }
@@ -744,8 +741,7 @@ static void sp_ctl(sp_t *sp)
 
 	// fetch0
 	sprn->fetch1_active = 0;
-	if (spro->fetch0_active)
-	{ // reading current instruction from memory
+	if (spro->fetch0_active) { // reading current instruction from memory
 		if (!is_dma_done)
 		{
 			llsim_mem_read(sp->srami, spro->fetch0_pc);					  // fetching the current instruction from SRAMI
@@ -756,8 +752,7 @@ static void sp_ctl(sp_t *sp)
 	}
 
 	// fetch1
-	if (spro->fetch1_active)
-	{ // sampling memoty output to the instruction register
+	if (spro->fetch1_active) { // sampling memoty output to the instruction register
 		if (!is_dma_done)
 		{
 			sprn->dec0_pc = spro->fetch1_pc; // setting pc for next stage
@@ -765,35 +760,28 @@ static void sp_ctl(sp_t *sp)
 		}
 		sprn->dec0_active = 1;
 	}
-	else
-	{ // fetch1 is not active
+	else { // fetch1 is not active
 		sprn->dec0_active = 0;
 	}
 
 	// dec0
-	if (spro->dec0_active)
-	{ // decoding instruction
-		if (!is_dma_done)
-		{
+	if (spro->dec0_active) { // decoding instruction
+		if (!is_dma_done) {
 			int opcode = (spro->dec0_inst & OPCODE_MASK) >> OPCODE_SHIFT;
-			if (opcode == JLT || opcode == JLE || opcode == JEQ || opcode == JNE)
-			{ // branch prediction
+			if (opcode == JLT || opcode == JLE || opcode == JEQ || opcode == JNE) { // branch prediction
 				handle_branch_prediction(spro, sprn);
 			}
 
-			if (opcode == LD && spro->dec1_opcode == ST && spro->dec1_active)
-			{ // load after store, RAW hazard
+			if (opcode == LD && spro->dec1_opcode == ST && spro->dec1_active) { // load after store, RAW hazard
 				handle_load_after_store(spro, sprn);
 			}
-			else
-			{
+			else {
 				sprn->dec1_opcode = (spro->dec0_inst & OPCODE_MASK) >> OPCODE_SHIFT;
 				sprn->dec1_dst = (spro->dec0_inst & DST_MASK) >> DST_SHIFT;
 				sprn->dec1_src0 = (spro->dec0_inst & SRC0_MASK) >> SRC0_SHIFT;
 				sprn->dec1_src1 = (spro->dec0_inst & SRC1_MASK) >> SRC1_SHIFT;
 				sprn->dec1_immediate = (spro->dec0_inst) & IMM_MASK;
-				if ((spro->dec0_inst & SIGN_EXT_MASK) != 0)
-				{ // need sign extension with msb 1
+				if ((spro->dec0_inst & SIGN_EXT_MASK) != 0) { // need sign extension with msb 1
 					sprn->dec1_immediate = sprn->dec1_immediate + (SIGN_EXT);
 				}
 
@@ -802,26 +790,21 @@ static void sp_ctl(sp_t *sp)
 				sprn->dec1_active = 1;
 			}
 		}
-		else
-		{
+		else {
 			sprn->dec1_active = 1;
 		}
 	}
-	else
-	{ // dec0 is not active
+	else { // dec0 is not active
 		sprn->dec1_active = 0;
 	}
 
 	// dec1
-	if (spro->dec1_active)
-	{ // preparing ALU operands
-		if (!is_dma_done)
-		{
+	if (spro->dec1_active) { // preparing ALU operands
+		if (!is_dma_done) {
 			decide_exec0_alu0_value(sp, spro, sprn);
 			decide_exec0_alu1_value(sp, spro, sprn);
 
-			if (spro->dec1_opcode == LHI)
-			{
+			if (spro->dec1_opcode == LHI) {
 				sprn->exec0_alu1 = spro->dec1_immediate;
 			}
 
@@ -836,20 +819,17 @@ static void sp_ctl(sp_t *sp)
 		}
 		sprn->exec0_active = 1;
 	}
-	else
-	{ // dec1 is not active
+	else { // dec1 is not active
 		sprn->exec0_active = 0;
 	}
 
 	// exec0
-	if (spro->exec0_active)
-	{ // executing ALU and LD operations
+	if (spro->exec0_active) { // executing ALU and LD operations
 		int alu0 = spro->exec0_alu0;
 		decide_exec1_alu0_value(sp, spro, sprn, &alu0);
 		int alu1 = spro->exec0_alu1;
 		decide_exec1_alu1_value(sp, spro, sprn, &alu1);
-		if (spro->exec0_opcode != CPY)
-		{
+		if (spro->exec0_opcode != CPY) {
 			int aluout = decide_exec1_aluout_value(sp, spro, sprn, alu0, alu1);
 			sprn->exec1_aluout = aluout;
 		}
@@ -867,26 +847,22 @@ static void sp_ctl(sp_t *sp)
 
 		sprn->exec1_active = 1;
 	}
-	else
-	{ // exec0 is not active
+	else { // exec0 is not active
 		sprn->exec1_active = 0;
 	}
 
 	// exec1
-	if (spro->exec1_active)
-	{ // writing back
+	if (spro->exec1_active) { // writing back
 		trace_inst_to_file(sp, spro, sprn);
 
 		inst_cnt = inst_cnt + 1;
 
-		if (spro->exec1_opcode == HLT || is_dma_done)
-		{
-			if (spro->dma_remain > 0)
-			{
+		// dma
+		if (spro->exec1_opcode == HLT || is_dma_done) { // end of execution or dma is done
+			if (spro->dma_remain > 0) { 
 				is_dma_done = true;
 			}
-			else
-			{
+			else {
 				is_dma_done = false;
 				llsim_stop();
 				fprintf(inst_trace_fp, "sim finished at pc %i, %i instructions", spro->exec1_pc, inst_cnt);
@@ -896,20 +872,17 @@ static void sp_ctl(sp_t *sp)
 			}
 		}
 
-		else if (spro->exec1_opcode == ST)
-		{ // executing ST
+		else if (spro->exec1_opcode == ST) { // executing ST
 			llsim_mem_set_datain(sp->sramd, spro->exec1_alu0, 31, 0);
 			llsim_mem_write(sp->sramd, spro->exec1_alu1);
 		}
 
-		else if (spro->exec1_opcode == LD) // executing LD
-		{
+		else if (spro->exec1_opcode == LD) { // executing LD
 			if (spro->exec1_dst != 0 && spro->exec1_dst != 1)
 				sprn->r[spro->exec1_dst] = llsim_mem_extract_dataout(sp->sramd, 31, 0);
 		}
 
-		else if (is_branch_operation(spro->exec1_opcode))
-		{ // checks if branch is taken and updates the next pc
+		else if (is_branch_operation(spro->exec1_opcode)) { // checks if branch is taken and updates the next pc
 			bool is_branch_taken = false;
 			int next_pc;
 
@@ -917,8 +890,7 @@ static void sp_ctl(sp_t *sp)
                 next_pc = spro->exec1_alu0 & LOWER_16_BITS_MASK;
                 is_branch_taken = true;
             }
-            else // a different branch opcode, taken depends on aluout
-            {
+            else { // a different branch opcode, taken depends on aluout
                 if (spro->exec1_aluout) {
                     next_pc = spro->exec1_immediate & LOWER_16_BITS_MASK;
                     is_branch_taken = true;
@@ -932,8 +904,7 @@ static void sp_ctl(sp_t *sp)
 			update_branch_history(spro, sprn, is_branch_taken);
 
 			bool is_flush_needed = check_if_flush_is_needed(spro, next_pc);
-			if (is_flush_needed)
-			{ // flushing
+			if (is_flush_needed) { // flushing
 				sprn->fetch0_active = 1;
 				sprn->dec0_active = 0;
 				sprn->exec0_active = 0;
@@ -944,31 +915,26 @@ static void sp_ctl(sp_t *sp)
 			}
 		}
 
-		else if (spro->exec1_dst != 0 && spro->exec1_dst != 1)
-		{ // WB to register
+		else if (spro->exec1_dst != 0 && spro->exec1_dst != 1) { // WB to register
 			sprn->r[spro->exec1_dst] = spro->exec1_aluout;
 		}
 	}
 
-	if (spro->exec1_opcode == CPY)
-	{
+	if (spro->exec1_opcode == CPY) {
 		is_dma_active = true;
 	}
 
-	if (!is_dma_done)
-	{
+	if (!is_dma_done) { // dma is not done
 		int is_mem_busy = 1;
 		if (sprn->dec1_opcode != LD && sprn->dec1_opcode != ST &&
 			sprn->exec0_opcode != LD && sprn->exec0_opcode != ST &&
-			sprn->exec1_opcode != LD && sprn->exec1_opcode != ST)
-		{
+			sprn->exec1_opcode != LD && sprn->exec1_opcode != ST) {
 			is_mem_busy = 0;
 		}
-		handle_dma(sp, is_mem_busy);
+		handle_exec1_dma(sp, is_mem_busy);
 	}
-	else
-	{
-		handle_dma(sp, 0);
+	else {
+		handle_exec1_dma(sp, 0); // dma is done, mem is not busy
 	}
 }
 
